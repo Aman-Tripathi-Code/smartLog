@@ -24,3 +24,12 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui/index.html
+
+smartlog:
+  ingestion:
+    pipeline:
+      queue-capacity: 1000
+      batch-size: 100
+      worker-threads: 2
+      poll-timeout: 200ms
+      shutdown-timeout: 10s

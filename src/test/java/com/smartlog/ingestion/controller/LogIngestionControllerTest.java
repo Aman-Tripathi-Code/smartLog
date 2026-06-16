@@ -1,6 +1,7 @@
 package com.smartlog.ingestion.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.smartlog.testsupport.AsyncAssertions.awaitAsserted;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,6 +55,7 @@ class LogIngestionControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         assertThat(response.getBody()).containsEntry("status", "ACCEPTED");
         assertThat(response.getBody()).containsEntry("eventId", "evt-001");
+        awaitLogCount(1);
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT service_name, level, message, correlation_id, attributes, received_at, created_at FROM logs WHERE event_id = ?",
@@ -94,7 +96,7 @@ class LogIngestionControllerTest {
         assertThat(response.getBody()).containsEntry("accepted", 2);
         assertThat(response.getBody()).containsEntry("rejected", 0);
         assertThat((List<?>) response.getBody().get("eventIds")).hasSize(2);
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Integer.class)).isEqualTo(2);
+        awaitLogCount(2);
     }
 
     @Test
@@ -139,8 +141,11 @@ class LogIngestionControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         String eventId = response.getBody().get("eventId").toString();
         assertThat(eventId).isNotBlank();
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs WHERE event_id = ?", Integer.class, eventId))
-                .isEqualTo(1);
+        awaitAsserted(() -> assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM logs WHERE event_id = ?",
+                Integer.class,
+                eventId
+        )).isEqualTo(1));
     }
 
     @Test
@@ -154,6 +159,11 @@ class LogIngestionControllerTest {
         );
 
         restTemplate.postForEntity("/api/v1/logs", new HttpEntity<>(request), Map.class);
+        awaitAsserted(() -> assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM logs WHERE event_id = ?",
+                Integer.class,
+                "evt-attributes"
+        )).isEqualTo(1));
 
         String attributes = jdbcTemplate.queryForObject(
                 "SELECT attributes FROM logs WHERE event_id = ?",
@@ -162,5 +172,10 @@ class LogIngestionControllerTest {
         );
         assertThat(attributes).contains("\"documentType\":\"LC\"");
         assertThat(attributes).contains("\"attempt\":2");
+    }
+
+    private void awaitLogCount(int expected) {
+        awaitAsserted(() -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Integer.class))
+                .isEqualTo(expected));
     }
 }

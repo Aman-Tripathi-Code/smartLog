@@ -10,8 +10,8 @@ import com.smartlog.ingestion.dto.BatchLogIngestionRequest;
 import com.smartlog.ingestion.dto.BatchLogIngestionResponse;
 import com.smartlog.ingestion.dto.LogIngestionRequest;
 import com.smartlog.ingestion.dto.LogIngestionResponse;
+import com.smartlog.ingestion.pipeline.LogEventPublisher;
 import com.smartlog.ingestion.validation.LogValidator;
-import com.smartlog.storage.repository.LogRepository;
 
 @Service
 public class LogIngestionService {
@@ -20,18 +20,18 @@ public class LogIngestionService {
 
     private final LogValidator validator;
     private final LogEventMapper mapper;
-    private final LogRepository repository;
+    private final LogEventPublisher publisher;
 
-    public LogIngestionService(LogValidator validator, LogEventMapper mapper, LogRepository repository) {
+    public LogIngestionService(LogValidator validator, LogEventMapper mapper, LogEventPublisher publisher) {
         this.validator = validator;
         this.mapper = mapper;
-        this.repository = repository;
+        this.publisher = publisher;
     }
 
     public LogIngestionResponse ingest(LogIngestionRequest request) {
         validator.validate(request);
         LogEvent event = mapper.toLogEvent(request);
-        repository.save(event);
+        publisher.publish(event);
         return new LogIngestionResponse(ACCEPTED, event.eventId(), event.receivedAt());
     }
 
@@ -41,7 +41,7 @@ public class LogIngestionService {
                 .map(mapper::toLogEvent)
                 .toList();
 
-        repository.saveAll(events);
+        publisher.publishAll(events);
         Instant acceptedAt = events.stream()
                 .map(LogEvent::receivedAt)
                 .max(Instant::compareTo)

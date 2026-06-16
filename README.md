@@ -12,13 +12,15 @@ The target domain for the demo is a microservice-heavy banking/trade-finance sty
 
 Checkpoint 1 created the initial Java 21 Spring Boot 3 Maven application as a single runnable service with logical package boundaries for the future SmartLog modules.
 
-Checkpoint 2 adds REST-first structured log ingestion. Logs are validated, assigned an event ID when missing, stamped with `receivedAt`, and stored directly in PostgreSQL through Spring JDBC. Kafka, search, trace reconstruction, alerting, analytics, SDK behavior, and UI are intentionally not implemented yet.
+Checkpoint 2 adds REST-first structured log ingestion. Logs are validated, assigned an event ID when missing, stamped with `receivedAt`, and accepted through the ingestion API.
 
 Checkpoint 3 moves database ownership to Flyway migrations. The PostgreSQL migration creates `logs` and `alerts` with UUID primary keys, timestamps, uniqueness on `event_id`, and indexes for correlation, trace, user, transaction, service/time, and level/time access patterns.
 
 Checkpoint 4 adds log search over the `logs` table. Results support service, level, time range, keyword, correlation, trace, user, and transaction filters with page/size pagination and default timestamp-descending ordering.
 
 Checkpoint 5 adds distributed trace lookup and basic root-cause detection. A trace can be fetched by `correlationId` in timestamp-ascending order, and the root-cause endpoint returns the first ERROR or FATAL log with `BASIC_RULE_BASED` confidence.
+
+Checkpoint 6 adds an asynchronous in-memory ingestion pipeline. Accepted logs are placed on a bounded queue, background worker threads persist them to PostgreSQL in batches, queue pressure returns HTTP 429, and in-process counters track accepted, rejected, persisted, failed, batched, and queued events. Kafka is still intentionally not added yet.
 
 Current local commands:
 
@@ -43,6 +45,25 @@ POST http://localhost:8080/api/v1/logs/batch
 GET  http://localhost:8080/api/v1/logs/search
 GET  http://localhost:8080/api/v1/traces/{correlationId}
 GET  http://localhost:8080/api/v1/traces/{correlationId}/root-cause
+```
+
+Ingestion pipeline configuration:
+
+```yaml
+smartlog:
+  ingestion:
+    pipeline:
+      queue-capacity: 1000
+      batch-size: 100
+      worker-threads: 2
+      poll-timeout: 200ms
+      shutdown-timeout: 10s
+```
+
+`POST /api/v1/logs` and `POST /api/v1/logs/batch` return `202 Accepted` after validation and enqueue, not after the row is durably written. Search and trace APIs may observe the log shortly after the worker flushes its batch. If the bounded queue is full, ingestion returns:
+
+```http
+HTTP/1.1 429 Too Many Requests
 ```
 
 Search examples:

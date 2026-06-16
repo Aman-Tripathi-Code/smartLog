@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.smartlog.ingestion.pipeline.LogQueueFullException;
 import com.smartlog.ingestion.validation.InvalidLogRequestException;
 
 @RestControllerAdvice
@@ -26,6 +27,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidLogRequestException.class)
     ResponseEntity<ApiErrorResponse> handleInvalidLogRequest(InvalidLogRequestException exception) {
         return badRequest(List.of(exception.getMessage()));
+    }
+
+    @ExceptionHandler(LogQueueFullException.class)
+    ResponseEntity<ApiErrorResponse> handleQueueFull(LogQueueFullException exception) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new ApiErrorResponse("INGESTION_QUEUE_FULL", List.of(exception.getMessage()), Instant.now()));
     }
 
     private ResponseEntity<ApiErrorResponse> badRequest(List<String> details) {

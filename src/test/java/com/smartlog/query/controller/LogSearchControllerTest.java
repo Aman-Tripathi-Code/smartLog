@@ -1,6 +1,7 @@
 package com.smartlog.query.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.smartlog.testsupport.AsyncAssertions.awaitAsserted;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,6 +35,8 @@ class LogSearchControllerTest {
                 "Customer limit validation failed", "corr-123", "trace-abc", "U1001", "TF-1001"));
         ingest(log("evt-doc", "2026-06-16T10:31:00Z", "document-service", "WARN",
                 "Document verification delayed", "corr-999", "trace-doc", "U2002", "TF-2002"));
+        awaitAsserted(() -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Integer.class))
+                .isEqualTo(3));
     }
 
     @Test

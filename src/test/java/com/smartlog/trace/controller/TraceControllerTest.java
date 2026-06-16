@@ -1,6 +1,7 @@
 package com.smartlog.trace.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.smartlog.testsupport.AsyncAssertions.awaitAsserted;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +37,8 @@ class TraceControllerTest {
                 "Customer limit validation failed", "LimitExceededException"));
         ingest(log("evt-trade", "2026-06-16T10:30:03Z", "trade-service", "INFO",
                 "Trade transaction created", null));
+        awaitAsserted(() -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Integer.class))
+                .isEqualTo(4));
     }
 
     @Test
