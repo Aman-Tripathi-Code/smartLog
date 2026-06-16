@@ -7,6 +7,19 @@ spring:
     password: smartlog
   flyway:
     locations: classpath:db/migration/postgresql
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+    consumer:
+      group-id: smartlog-processor
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      missing-topics-fatal: false
 
 server:
   port: 8080
@@ -27,9 +40,16 @@ springdoc:
 
 smartlog:
   ingestion:
+    mode: kafka
     pipeline:
       queue-capacity: 1000
       batch-size: 100
       worker-threads: 2
       poll-timeout: 200ms
       shutdown-timeout: 10s
+  kafka:
+    publish-timeout: 5s
+    topics:
+      raw: logs.raw
+      enriched: logs.enriched
+      dead-letter: logs.dead-letter

@@ -14,6 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,7 @@ import com.smartlog.common.model.LogEvent;
 import com.smartlog.storage.repository.LogRepository;
 
 @Component
+@ConditionalOnProperty(name = "smartlog.ingestion.mode", havingValue = "in-memory")
 public class AsyncLogIngestionPipeline implements LogEventPublisher, SmartLifecycle {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AsyncLogIngestionPipeline.class);

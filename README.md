@@ -22,11 +22,13 @@ Checkpoint 5 adds distributed trace lookup and basic root-cause detection. A tra
 
 Checkpoint 6 adds an asynchronous in-memory ingestion pipeline. Accepted logs are placed on a bounded queue, background worker threads persist them to PostgreSQL in batches, queue pressure returns HTTP 429, and in-process counters track accepted, rejected, persisted, failed, batched, and queued events. Kafka is still intentionally not added yet.
 
+Checkpoint 7 adds Kafka-based event-driven ingestion. The default runtime mode publishes accepted logs to `logs.raw`; a Kafka consumer processes raw events, emits valid events to `logs.enriched`, writes them to PostgreSQL, and sends malformed payloads to `logs.dead-letter`. The previous bounded in-memory queue remains available with `smartlog.ingestion.mode=in-memory` for local development or tests when Kafka is disabled.
+
 Current local commands:
 
 ```bash
 mvn test
-docker compose up -d postgres
+docker compose up -d postgres kafka kafka-init
 mvn spring-boot:run
 ```
 
@@ -52,15 +54,44 @@ Ingestion pipeline configuration:
 ```yaml
 smartlog:
   ingestion:
+    mode: kafka
     pipeline:
       queue-capacity: 1000
       batch-size: 100
       worker-threads: 2
       poll-timeout: 200ms
       shutdown-timeout: 10s
+  kafka:
+    publish-timeout: 5s
+    topics:
+      raw: logs.raw
+      enriched: logs.enriched
+      dead-letter: logs.dead-letter
 ```
 
-`POST /api/v1/logs` and `POST /api/v1/logs/batch` return `202 Accepted` after validation and enqueue, not after the row is durably written. Search and trace APIs may observe the log shortly after the worker flushes its batch. If the bounded queue is full, ingestion returns:
+`POST /api/v1/logs` and `POST /api/v1/logs/batch` return `202 Accepted` after validation and publish to the configured ingestion pipeline, not after the row is durably written. In the default Kafka mode, search and trace APIs observe the log after the raw-topic consumer processes it and persists it. In in-memory mode, they observe the log after the local worker flushes its batch.
+
+Kafka topics created by Docker Compose:
+
+```text
+logs.raw
+logs.enriched
+logs.dead-letter
+```
+
+To run without Kafka for quick local work:
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.arguments="--smartlog.ingestion.mode=in-memory"
+```
+
+If Kafka is unavailable in `kafka` mode, ingestion returns:
+
+```http
+HTTP/1.1 503 Service Unavailable
+```
+
+If the bounded queue is full in `in-memory` mode, ingestion returns:
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -157,7 +188,7 @@ Test migrations:       src/test/resources/db/migration/h2
 
 `mvn test` verifies the migration-managed schema using H2 in PostgreSQL compatibility mode. Full PostgreSQL integration testing with Testcontainers is not enabled yet because Docker is not available in this local environment; when Docker is installed, add Testcontainers PostgreSQL coverage for the same Flyway migration.
 
-The code intentionally does not implement Kafka, alerting, or analytics yet. Those belong to later checkpoints in `GOAL.md`.
+The code intentionally does not implement alerting or analytics yet. Those belong to later checkpoints in `GOAL.md`.
 
 ---
 

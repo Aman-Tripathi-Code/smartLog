@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.smartlog.ingestion.kafka.KafkaPublishException;
 import com.smartlog.ingestion.pipeline.LogQueueFullException;
 import com.smartlog.ingestion.validation.InvalidLogRequestException;
 
@@ -33,6 +34,12 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiErrorResponse> handleQueueFull(LogQueueFullException exception) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(new ApiErrorResponse("INGESTION_QUEUE_FULL", List.of(exception.getMessage()), Instant.now()));
+    }
+
+    @ExceptionHandler(KafkaPublishException.class)
+    ResponseEntity<ApiErrorResponse> handleKafkaPublish(KafkaPublishException exception) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ApiErrorResponse("KAFKA_UNAVAILABLE", List.of(exception.getMessage()), Instant.now()));
     }
 
     private ResponseEntity<ApiErrorResponse> badRequest(List<String> details) {

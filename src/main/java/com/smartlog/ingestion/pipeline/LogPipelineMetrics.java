@@ -19,23 +19,23 @@ public class LogPipelineMetrics {
         this.queueDepthSupplier = queueDepthSupplier;
     }
 
-    void incrementAccepted(long count) {
+    public void incrementAccepted(long count) {
         accepted.addAndGet(count);
     }
 
-    void incrementRejected(long count) {
+    public void incrementRejected(long count) {
         rejected.addAndGet(count);
     }
 
-    void incrementPersisted(long count) {
+    public void incrementPersisted(long count) {
         persisted.addAndGet(count);
     }
 
-    void incrementFailed(long count) {
+    public void incrementFailed(long count) {
         failed.addAndGet(count);
     }
 
-    void incrementBatchesPersisted() {
+    public void incrementBatchesPersisted() {
         batchesPersisted.incrementAndGet();
     }
 
