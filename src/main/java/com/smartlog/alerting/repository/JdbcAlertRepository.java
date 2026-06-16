@@ -59,6 +59,25 @@ class JdbcAlertRepository implements AlertRepository {
         return alerts.stream().findFirst();
     }
 
+    @Override
+    public Optional<AlertRecord> findRecentDuplicate(String alertType, String serviceName, Instant since) {
+        List<AlertRecord> alerts = jdbcTemplate.query("""
+                SELECT id, alert_type, severity, service_name, message, window_start, window_end,
+                       event_count, status, sample_correlation_id, sample_transaction_id, created_at, updated_at
+                FROM alerts
+                WHERE alert_type = :alertType
+                  AND service_name = :serviceName
+                  AND status = 'ACTIVE'
+                  AND created_at >= :since
+                ORDER BY created_at DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("alertType", alertType)
+                .addValue("serviceName", serviceName)
+                .addValue("since", Timestamp.from(since)), this::mapAlert);
+        return alerts.stream().findFirst();
+    }
+
     private MapSqlParameterSource parameters(AlertRecord alert) {
         return new MapSqlParameterSource()
                 .addValue("id", alert.alertId())

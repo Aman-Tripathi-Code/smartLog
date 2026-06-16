@@ -52,6 +52,21 @@ class AlertEngineTest {
         assertThat(metrics.alertsGenerated()).isZero();
     }
 
+    @Test
+    void suppressesDuplicateAlertWhenRepositoryHasActiveRecentAlert() {
+        RecordingAlertRepository repository = new RecordingAlertRepository();
+        repository.duplicate = Optional.of(alert("limit-check-service", Instant.parse("2026-06-16T10:01:00Z")));
+        LogPipelineMetrics metrics = new LogPipelineMetrics();
+        AlertEngine engine = new AlertEngine(repository, properties(1, Duration.ofMinutes(10)), metrics);
+
+        engine.evaluate(event("evt-1", Instant.parse("2026-06-16T10:00:00Z")));
+        Optional<AlertRecord> alert = engine.evaluate(event("evt-2", Instant.parse("2026-06-16T10:01:00Z")));
+
+        assertThat(alert).isEmpty();
+        assertThat(repository.savedAlerts).isEmpty();
+        assertThat(metrics.alertsGenerated()).isZero();
+    }
+
     private AlertingProperties properties(int threshold, Duration window) {
         AlertingProperties properties = new AlertingProperties();
         properties.setErrorThreshold(threshold);
@@ -81,9 +96,28 @@ class AlertEngineTest {
         );
     }
 
+    private AlertRecord alert(String serviceName, Instant createdAt) {
+        return new AlertRecord(
+                UUID.randomUUID(),
+                "HIGH_ERROR_RATE",
+                "HIGH",
+                serviceName,
+                serviceName + " produced duplicate errors",
+                createdAt.minusSeconds(60),
+                createdAt,
+                2,
+                "ACTIVE",
+                "corr-12345",
+                "TF-9081",
+                createdAt,
+                createdAt
+        );
+    }
+
     private static final class RecordingAlertRepository implements AlertRepository {
 
         private final List<AlertRecord> savedAlerts = new ArrayList<>();
+        private Optional<AlertRecord> duplicate = Optional.empty();
 
         @Override
         public AlertRecord save(AlertRecord alert) {
@@ -101,6 +135,14 @@ class AlertEngineTest {
             return savedAlerts.stream()
                     .filter(alert -> alert.alertId().equals(alertId))
                     .findFirst();
+        }
+
+        @Override
+        public Optional<AlertRecord> findRecentDuplicate(String alertType, String serviceName, Instant since) {
+            return duplicate
+                    .filter(alert -> alert.alertType().equals(alertType))
+                    .filter(alert -> alert.serviceName().equals(serviceName))
+                    .filter(alert -> !alert.createdAt().isBefore(since));
         }
     }
 }

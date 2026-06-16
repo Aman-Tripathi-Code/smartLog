@@ -10,12 +10,12 @@ import java.util.concurrent.atomic.AtomicLong;
 public class AsyncLogSender implements AutoCloseable {
 
     private final BlockingQueue<String> queue;
-    private final HttpLogTransport transport;
+    private final LogTransport transport;
     private final ExecutorService executorService;
     private final AtomicLong dropped = new AtomicLong();
     private volatile boolean running = true;
 
-    public AsyncLogSender(HttpLogTransport transport, int capacity) {
+    public AsyncLogSender(LogTransport transport, int capacity) {
         this.transport = transport;
         this.queue = new ArrayBlockingQueue<>(Math.max(1, capacity));
         this.executorService = Executors.newSingleThreadExecutor(runnable -> {

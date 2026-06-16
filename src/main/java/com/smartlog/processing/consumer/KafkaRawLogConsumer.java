@@ -6,7 +6,6 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -34,7 +33,6 @@ public class KafkaRawLogConsumer {
     private final LogProcessingService processingService;
     private final DeadLetterRepository deadLetterRepository;
 
-    @Autowired
     public KafkaRawLogConsumer(
             ObjectMapper objectMapper,
             KafkaMessagePublisher messagePublisher,
@@ -55,6 +53,7 @@ public class KafkaRawLogConsumer {
         );
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public KafkaRawLogConsumer(
             ObjectMapper objectMapper,
             KafkaMessagePublisher messagePublisher,

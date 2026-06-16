@@ -7,7 +7,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
-public class HttpLogTransport {
+public class HttpLogTransport implements LogTransport {
 
     private final HttpClient httpClient;
     private final URI endpoint;
@@ -21,6 +21,7 @@ public class HttpLogTransport {
         this.httpClient = httpClient;
     }
 
+    @Override
     public boolean post(String jsonPayload) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(endpoint)
                 .timeout(Duration.ofSeconds(5))

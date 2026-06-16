@@ -102,6 +102,10 @@ public class AlertEngine {
         if (lastAlertAt != null && !lastAlertAt.isBefore(windowStart)) {
             return Optional.empty();
         }
+        if (repository.findRecentDuplicate(HIGH_ERROR_RATE, serviceName, windowStart).isPresent()) {
+            lastAlertByService.put(serviceName, eventTime);
+            return Optional.empty();
+        }
 
         AlertRecord alert = alert(event, windowStart, eventTime, count, window);
         lastAlertByService.put(serviceName, eventTime);

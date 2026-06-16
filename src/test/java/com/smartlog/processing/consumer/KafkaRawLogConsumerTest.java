@@ -61,6 +61,7 @@ class KafkaRawLogConsumerTest {
     void sendsMalformedRawLogToDeadLetterTopic() {
         RecordingKafkaPublisher publisher = new RecordingKafkaPublisher();
         RecordingRepository repository = new RecordingRepository();
+        RecordingDeadLetterRepository deadLetters = new RecordingDeadLetterRepository();
         LogPipelineMetrics metrics = new LogPipelineMetrics();
         KafkaRawLogConsumer consumer = new KafkaRawLogConsumer(
                 objectMapper(),
@@ -68,7 +69,12 @@ class KafkaRawLogConsumerTest {
                 properties(),
                 repository,
                 alertEngine(),
-                metrics
+                metrics,
+                new com.smartlog.processing.service.LogProcessingService(
+                        new com.smartlog.processing.masker.PiiMasker(),
+                        new com.smartlog.processing.fingerprint.FingerprintGenerator()
+                ),
+                deadLetters
         );
 
         consumer.consumeRawLog("{not-json");
@@ -79,6 +85,9 @@ class KafkaRawLogConsumerTest {
         assertThat(deadLetter.topic()).isEqualTo("logs.dead-letter");
         assertThat(deadLetter.payload()).contains("rawPayload");
         assertThat(deadLetter.payload()).contains("{not-json");
+        assertThat(deadLetters.records).hasSize(1);
+        assertThat(deadLetters.records.getFirst().rawPayload()).isEqualTo("{not-json");
+        assertThat(deadLetters.records.getFirst().sourceTopic()).isEqualTo("logs.raw");
         assertThat(metrics.failed()).isEqualTo(1);
     }
 
@@ -166,6 +175,17 @@ class KafkaRawLogConsumerTest {
     }
 
     private record SentMessage(String topic, String key, String payload) {
+    }
+
+    private static final class RecordingDeadLetterRepository implements DeadLetterRepository {
+
+        private final List<DeadLetterRecord> records = new ArrayList<>();
+
+        @Override
+        public DeadLetterRecord save(DeadLetterRecord record) {
+            records.add(record);
+            return record;
+        }
     }
 
     private static final class RecordingAlertRepository implements AlertRepository {

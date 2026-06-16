@@ -20,7 +20,7 @@ It accepts structured logs from services, processes them through an asynchronous
 - Analytics for top recurring errors, top exceptions, and service error rate.
 - Provider-neutral AI incident summarization through an `LlmClient` interface and local `MockLlmClient`.
 - Prometheus metrics, Grafana dashboard, k6 load test, and sample log generator.
-- Lightweight Java SDK package for emitting logs from Java services.
+- Lightweight Java SDK package for emitting logs from Java services, including the built-in demo flow.
 
 ## Architecture
 
@@ -58,7 +58,7 @@ The application currently runs as a single Spring Boot service with clear packag
 - Spring Boot Actuator
 - Micrometer and Prometheus
 - Grafana
-- JUnit 5 and H2 for tests
+- JUnit 5, H2, and Docker-optional Testcontainers for tests
 - k6 for load testing
 
 ## Repository Layout
@@ -361,7 +361,7 @@ POST /api/v1/demo/trade-transactions/success
 POST /api/v1/demo/trade-transactions/fail-limit
 ```
 
-These endpoints emit a small trade-finance style distributed trace through the normal ingestion path.
+These endpoints emit a small trade-finance style distributed trace through `SmartLogClient` and the normal ingestion path.
 
 ## Sample Trace Walkthrough
 
@@ -459,7 +459,7 @@ smartLog.error(
                 .userId("U1001")
                 .transactionId("TF-9081")
                 .module("LIMIT_VALIDATION")
-                .attribute("customerId", "C1001")
+                .attributes(Map.of("customerId", "C1001"))
                 .build(),
         exception
 );
@@ -530,6 +530,16 @@ Record benchmark results in:
 ```text
 docs/benchmarks.md
 ```
+
+## Integration Tests
+
+The normal test suite uses H2 and mocked Kafka components so it can run quickly:
+
+```bash
+mvn test
+```
+
+Docker-optional Testcontainers checks are included for PostgreSQL migrations and Kafka topic round-trip. They run automatically when Docker is available and are skipped when Docker is not available.
 
 ## Sample Data
 
