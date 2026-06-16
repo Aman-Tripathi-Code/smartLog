@@ -50,6 +50,13 @@ springdoc:
 smartlog:
   ingestion:
     mode: kafka
+    validation:
+      max-payload-bytes: 262144
+      max-stack-trace-chars: 12000
+    rate-limit:
+      enabled: false
+      default-limit-per-window: 1000
+      window: 1m
     pipeline:
       queue-capacity: 1000
       batch-size: 100
@@ -62,6 +69,7 @@ smartlog:
       raw: logs.raw
       enriched: logs.enriched
       dead-letter: logs.dead-letter
+      alerts-created: alerts.created
   alerting:
     error-threshold: 100
     window: 5m

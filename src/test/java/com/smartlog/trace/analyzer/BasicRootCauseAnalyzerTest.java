@@ -16,7 +16,7 @@ class BasicRootCauseAnalyzerTest {
     private final BasicRootCauseAnalyzer analyzer = new BasicRootCauseAnalyzer();
 
     @Test
-    void selectsFirstErrorOrFatalEventInTimelineOrder() {
+    void prioritizesFatalExceptionOverEarlierError() {
         List<TraceLogEvent> events = List.of(
                 event("auth-service", "INFO", "User authenticated", null, "2026-06-16T10:30:01Z"),
                 event("limit-check-service", "ERROR", "Customer limit validation failed",
@@ -28,13 +28,17 @@ class BasicRootCauseAnalyzerTest {
         Optional<RootCauseResponse> rootCause = analyzer.analyze("corr-12345", events);
 
         assertThat(rootCause).isPresent();
-        assertThat(rootCause.get().serviceName()).isEqualTo("limit-check-service");
-        assertThat(rootCause.get().message()).isEqualTo("Customer limit validation failed");
-        assertThat(rootCause.get().exceptionType()).isEqualTo("LimitExceededException");
-        assertThat(rootCause.get().timestamp()).isEqualTo(Instant.parse("2026-06-16T10:30:05Z"));
+        assertThat(rootCause.get().serviceName()).isEqualTo("workflow-service");
+        assertThat(rootCause.get().message()).isEqualTo("Workflow crashed");
+        assertThat(rootCause.get().exceptionType()).isEqualTo("WorkflowException");
+        assertThat(rootCause.get().timestamp()).isEqualTo(Instant.parse("2026-06-16T10:30:06Z"));
         assertThat(rootCause.get().transactionId()).isEqualTo("TF-9081");
         assertThat(rootCause.get().userId()).isEqualTo("U1001");
-        assertThat(rootCause.get().confidence()).isEqualTo(BasicRootCauseAnalyzer.CONFIDENCE);
+        assertThat(rootCause.get().confidence()).isEqualTo(BasicRootCauseAnalyzer.HIGH);
+        assertThat(rootCause.get().reason()).contains("FATAL").contains("exception type");
+        assertThat(rootCause.get().supportingEvents())
+                .extracting(TraceLogEvent::eventId)
+                .containsExactly("evt-limit-check-service-ERROR");
     }
 
     @Test
@@ -47,6 +51,21 @@ class BasicRootCauseAnalyzerTest {
         Optional<RootCauseResponse> rootCause = analyzer.analyze("corr-12345", events);
 
         assertThat(rootCause).isEmpty();
+    }
+
+    @Test
+    void usesWarningFailureKeywordAsLowConfidenceFallback() {
+        List<TraceLogEvent> events = List.of(
+                event("auth-service", "INFO", "User authenticated", null, "2026-06-16T10:30:01Z"),
+                event("workflow-service", "WARN", "Validation failed before commit", null, "2026-06-16T10:30:06Z")
+        );
+
+        Optional<RootCauseResponse> rootCause = analyzer.analyze("corr-12345", events);
+
+        assertThat(rootCause).isPresent();
+        assertThat(rootCause.get().serviceName()).isEqualTo("workflow-service");
+        assertThat(rootCause.get().confidence()).isEqualTo(BasicRootCauseAnalyzer.LOW);
+        assertThat(rootCause.get().reason()).contains("WARN").contains("failure keyword");
     }
 
     private TraceLogEvent event(

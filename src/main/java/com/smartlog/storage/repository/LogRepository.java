@@ -19,5 +19,17 @@ public interface LogRepository {
 
     List<TraceLogEvent> findByCorrelationId(String correlationId);
 
+    default List<TraceLogEvent> findByTransactionId(String transactionId) {
+        return List.of();
+    }
+
+    default List<String> findRecentCorrelationIdsByUserId(String userId, int limit) {
+        return List.of();
+    }
+
     List<TopErrorEvent> findErrorEventsSince(java.time.Instant from);
+
+    default List<TopErrorEvent> findErrorEventsSince(java.time.Instant from, String serviceName) {
+        return findErrorEventsSince(from);
+    }
 }

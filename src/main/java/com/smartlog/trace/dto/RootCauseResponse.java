@@ -1,6 +1,7 @@
 package com.smartlog.trace.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 public record RootCauseResponse(
         String correlationId,
@@ -10,6 +11,8 @@ public record RootCauseResponse(
         Instant timestamp,
         String transactionId,
         String userId,
-        String confidence
+        String confidence,
+        String reason,
+        List<TraceLogEvent> supportingEvents
 ) {
 }

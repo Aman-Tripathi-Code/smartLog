@@ -14,12 +14,16 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
 import com.smartlog.alerting.engine.AlertEngine;
 import com.smartlog.common.model.LogEvent;
+import com.smartlog.processing.fingerprint.FingerprintGenerator;
+import com.smartlog.processing.masker.PiiMasker;
+import com.smartlog.processing.service.LogProcessingService;
 import com.smartlog.storage.repository.LogRepository;
 
 @Component
@@ -30,6 +34,7 @@ public class AsyncLogIngestionPipeline implements LogEventPublisher, SmartLifecy
 
     private final LogRepository repository;
     private final AlertEngine alertEngine;
+    private final LogProcessingService processingService;
     private final LogPipelineMetrics metrics;
     private final BlockingQueue<LogEvent> queue;
     private final int batchSize;
@@ -41,14 +46,32 @@ public class AsyncLogIngestionPipeline implements LogEventPublisher, SmartLifecy
     private final AtomicBoolean running = new AtomicBoolean(false);
     private ExecutorService executorService;
 
+    @Autowired
     public AsyncLogIngestionPipeline(
             LogRepository repository,
             AlertEngine alertEngine,
             LogPipelineProperties properties,
             LogPipelineMetrics metrics
     ) {
+        this(
+                repository,
+                alertEngine,
+                properties,
+                metrics,
+                new LogProcessingService(new PiiMasker(), new FingerprintGenerator())
+        );
+    }
+
+    public AsyncLogIngestionPipeline(
+            LogRepository repository,
+            AlertEngine alertEngine,
+            LogPipelineProperties properties,
+            LogPipelineMetrics metrics,
+            LogProcessingService processingService
+    ) {
         this.repository = repository;
         this.alertEngine = alertEngine;
+        this.processingService = processingService;
         this.metrics = metrics;
         this.queue = new ArrayBlockingQueue<>(positive(properties.queueCapacity(), "queueCapacity"));
         this.batchSize = positive(properties.batchSize(), "batchSize");
@@ -162,7 +185,9 @@ public class AsyncLogIngestionPipeline implements LogEventPublisher, SmartLifecy
             return;
         }
 
-        List<LogEvent> toPersist = List.copyOf(batch);
+        List<LogEvent> toPersist = batch.stream()
+                .map(processingService::process)
+                .toList();
         batch.clear();
         try {
             repository.saveAll(toPersist);

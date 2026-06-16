@@ -174,6 +174,23 @@ class LogIngestionControllerTest {
         assertThat(attributes).contains("\"attempt\":2");
     }
 
+    @Test
+    void oversizedStackTraceReturnsPayloadTooLarge() {
+        Map<String, Object> request = Map.of(
+                "eventId", "evt-large-stack",
+                "serviceName", "trade-service",
+                "level", "ERROR",
+                "message", "Trade failed",
+                "stackTrace", "x".repeat(12_001)
+        );
+
+        ResponseEntity<Map> response = restTemplate.postForEntity("/api/v1/logs", request, Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+        assertThat(response.getBody()).containsEntry("error", "PAYLOAD_TOO_LARGE");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Integer.class)).isZero();
+    }
+
     private void awaitLogCount(int expected) {
         awaitAsserted(() -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM logs", Integer.class))
                 .isEqualTo(expected));

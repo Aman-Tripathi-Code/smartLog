@@ -33,4 +33,12 @@ public class KafkaTopicConfiguration {
                 .replicas(1)
                 .build();
     }
+
+    @Bean
+    NewTopic alertsCreatedTopic(KafkaTopicsProperties properties) {
+        return TopicBuilder.name(properties.topics().alertsCreated())
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
 }

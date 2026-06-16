@@ -6,6 +6,7 @@ import static com.smartlog.testsupport.AsyncAssertions.awaitAsserted;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ class TraceControllerTest {
     @BeforeEach
     void seedTrace() {
         jdbcTemplate.update("DELETE FROM incident_summaries");
+        jdbcTemplate.update("DELETE FROM alerts");
         jdbcTemplate.update("DELETE FROM logs");
 
         ingest(log("evt-workflow", "2026-06-16T10:30:06Z", "workflow-service", "WARN",
@@ -49,12 +51,60 @@ class TraceControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> body = response.getBody();
         assertThat(body).containsEntry("correlationId", "corr-12345");
+        assertThat(body).containsEntry("transactionId", "TF-9081");
+        assertThat(body).containsEntry("userId", "U1001");
+        assertThat(body).containsEntry("status", "FAILED");
+        assertThat(body).containsEntry("highestSeverity", "ERROR");
         assertThat(body).containsEntry("totalEvents", 4);
+        assertThat(body.get("durationMs")).isEqualTo(5000);
+        assertThat(list(body, "services"))
+                .containsExactly("auth-service", "trade-service", "limit-check-service", "workflow-service");
         assertThat(eventIds(body)).containsExactly("evt-auth", "evt-trade", "evt-limit", "evt-workflow");
+        assertThat(events(body).get(2)).containsEntry("stackTrace", null);
     }
 
     @Test
-    void returnsBasicRootCauseForFirstErrorOrFatalEvent() {
+    void filtersTraceTimelineAndCanIncludeStackTrace() {
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+                "/api/v1/traces/corr-12345?level=ERROR&serviceName=limit-check-service&includeStackTrace=true",
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = response.getBody();
+        assertThat(body).containsEntry("totalEvents", 1);
+        assertThat(eventIds(body)).containsExactly("evt-limit");
+        assertThat(events(body).getFirst().get("stackTrace").toString())
+                .contains("token=***MASKED***")
+                .doesNotContain("token=secret-token");
+    }
+
+    @Test
+    void returnsTraceTimelineByTransactionId() {
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+                "/api/v1/traces/by-transaction/TF-9081",
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).containsEntry("correlationId", "corr-12345");
+        assertThat(eventIds(response.getBody())).containsExactly("evt-auth", "evt-trade", "evt-limit", "evt-workflow");
+    }
+
+    @Test
+    void returnsRecentTraceTimelinesByUser() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "/api/v1/traces/by-user/U1001?limit=5",
+                List.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).hasSize(1);
+        assertThat((Map<String, Object>) response.getBody().getFirst()).containsEntry("correlationId", "corr-12345");
+    }
+
+    @Test
+    void returnsPrioritizedRootCauseWithSupportingContext() {
         ResponseEntity<Map> response = restTemplate.getForEntity(
                 "/api/v1/traces/corr-12345/root-cause",
                 Map.class
@@ -68,8 +118,10 @@ class TraceControllerTest {
         assertThat(body).containsEntry("exceptionType", "LimitExceededException");
         assertThat(body).containsEntry("transactionId", "TF-9081");
         assertThat(body).containsEntry("userId", "U1001");
-        assertThat(body).containsEntry("confidence", "BASIC_RULE_BASED");
+        assertThat(body).containsEntry("confidence", "HIGH");
+        assertThat(body.get("reason").toString()).contains("ERROR").contains("exception type");
         assertThat(body).containsEntry("timestamp", "2026-06-16T10:30:05Z");
+        assertThat((List<?>) body.get("supportingEvents")).hasSize(2);
     }
 
     @Test
@@ -103,6 +155,37 @@ class TraceControllerTest {
         )).isEqualTo(1));
     }
 
+    @Test
+    void createsIncidentSummaryForAlert() {
+        UUID alertId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO alerts (
+                    id, alert_type, severity, service_name, message, window_start, window_end,
+                    event_count, status, sample_correlation_id, sample_transaction_id, created_at, updated_at
+                )
+                VALUES (
+                    ?, 'ERROR_THRESHOLD', 'HIGH', 'limit-check-service', 'Error threshold exceeded',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 3, 'OPEN', 'corr-12345', 'TF-9081',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, alertId);
+
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+                "/api/v1/incidents/" + alertId + "/summary",
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).containsEntry("correlationId", "corr-12345");
+        assertThat(response.getBody().get("summary").toString())
+                .contains("Trace corr-12345 failed at limit-check-service");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM incident_summaries WHERE alert_id = ?",
+                Integer.class,
+                alertId
+        )).isEqualTo(1);
+    }
+
     private void ingest(Map<String, Object> request) {
         ResponseEntity<Map> response = restTemplate.postForEntity("/api/v1/logs", request, Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
@@ -130,6 +213,7 @@ class TraceControllerTest {
         request.put("transactionId", "TF-9081");
         if (exceptionType != null) {
             request.put("exceptionType", exceptionType);
+            request.put("stackTrace", exceptionType + ": request failed token=secret-token");
         }
         return request;
     }

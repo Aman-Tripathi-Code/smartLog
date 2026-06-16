@@ -11,6 +11,7 @@ import com.smartlog.ingestion.dto.BatchLogIngestionResponse;
 import com.smartlog.ingestion.dto.LogIngestionRequest;
 import com.smartlog.ingestion.dto.LogIngestionResponse;
 import com.smartlog.ingestion.pipeline.LogEventPublisher;
+import com.smartlog.ingestion.ratelimit.InMemoryRateLimiter;
 import com.smartlog.ingestion.validation.LogValidator;
 
 @Service
@@ -21,15 +22,23 @@ public class LogIngestionService {
     private final LogValidator validator;
     private final LogEventMapper mapper;
     private final LogEventPublisher publisher;
+    private final InMemoryRateLimiter rateLimiter;
 
-    public LogIngestionService(LogValidator validator, LogEventMapper mapper, LogEventPublisher publisher) {
+    public LogIngestionService(
+            LogValidator validator,
+            LogEventMapper mapper,
+            LogEventPublisher publisher,
+            InMemoryRateLimiter rateLimiter
+    ) {
         this.validator = validator;
         this.mapper = mapper;
         this.publisher = publisher;
+        this.rateLimiter = rateLimiter;
     }
 
     public LogIngestionResponse ingest(LogIngestionRequest request) {
         validator.validate(request);
+        rateLimiter.check(request.serviceName(), 1);
         LogEvent event = mapper.toLogEvent(request);
         publisher.publish(event);
         return new LogIngestionResponse(ACCEPTED, event.eventId(), event.receivedAt());
@@ -40,6 +49,9 @@ public class LogIngestionService {
                 .peek(validator::validate)
                 .map(mapper::toLogEvent)
                 .toList();
+        events.stream()
+                .collect(java.util.stream.Collectors.groupingBy(LogEvent::serviceName, java.util.stream.Collectors.counting()))
+                .forEach((serviceName, count) -> rateLimiter.check(serviceName, Math.toIntExact(count)));
 
         publisher.publishAll(events);
         Instant acceptedAt = events.stream()

@@ -36,7 +36,8 @@ class JdbcLogRepository implements LogRepository {
     JdbcLogRepository(NamedParameterJdbcTemplate jdbcTemplate, ObjectMapper objectMapper, DataSource dataSource) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
-        this.insertSql = buildInsertSql(attributesExpression(dataSource));
+        DbExpressions expressions = dbExpressions(dataSource);
+        this.insertSql = buildInsertSql(expressions.attributesExpression(), expressions.conflictClause());
     }
 
     @Override
@@ -87,7 +88,7 @@ class JdbcLogRepository implements LogRepository {
         String sql = """
                 SELECT event_id, event_timestamp, received_at, service_name, environment, level, message,
                        correlation_id, trace_id, span_id, parent_span_id, user_id, transaction_id,
-                       module, exception_type
+                       module, exception_type, stack_trace
                 FROM logs
                 WHERE correlation_id = :correlationId
                 ORDER BY event_timestamp ASC, received_at ASC
@@ -100,16 +101,66 @@ class JdbcLogRepository implements LogRepository {
     }
 
     @Override
+    public List<TraceLogEvent> findByTransactionId(String transactionId) {
+        String sql = """
+                SELECT event_id, event_timestamp, received_at, service_name, environment, level, message,
+                       correlation_id, trace_id, span_id, parent_span_id, user_id, transaction_id,
+                       module, exception_type, stack_trace
+                FROM logs
+                WHERE transaction_id = :transactionId
+                ORDER BY event_timestamp ASC, received_at ASC
+                """;
+
+        return jdbcTemplate.query(
+                sql,
+                new MapSqlParameterSource("transactionId", transactionId),
+                this::mapTraceLogEvent
+        );
+    }
+
+    @Override
+    public List<String> findRecentCorrelationIdsByUserId(String userId, int limit) {
+        String sql = """
+                SELECT correlation_id, MAX(event_timestamp) AS latest_event
+                FROM logs
+                WHERE user_id = :userId
+                  AND correlation_id IS NOT NULL
+                GROUP BY correlation_id
+                ORDER BY latest_event DESC
+                LIMIT :limit
+                """;
+
+        return jdbcTemplate.query(
+                sql,
+                new MapSqlParameterSource()
+                        .addValue("userId", userId)
+                        .addValue("limit", Math.max(1, limit)),
+                (resultSet, rowNumber) -> resultSet.getString("correlation_id")
+        );
+    }
+
+    @Override
     public List<TopErrorEvent> findErrorEventsSince(Instant from) {
+        return findErrorEventsSince(from, null);
+    }
+
+    @Override
+    public List<TopErrorEvent> findErrorEventsSince(Instant from, String serviceName) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("from", Timestamp.from(from));
+        String serviceFilter = "";
+        if (serviceName != null && !serviceName.isBlank()) {
+            serviceFilter = " AND service_name = :serviceName";
+            parameters.addValue("serviceName", serviceName);
+        }
+
         String sql = """
                 SELECT message, exception_type
                 FROM logs
                 WHERE level IN ('ERROR', 'FATAL')
                   AND event_timestamp >= :from
-                """;
-
-        MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("from", Timestamp.from(from));
+                  %s
+                """.formatted(serviceFilter);
 
         return jdbcTemplate.query(sql, parameters, (resultSet, rowNumber) -> new TopErrorEvent(
                 resultSet.getString("message"),
@@ -135,6 +186,9 @@ class JdbcLogRepository implements LogRepository {
                 .addValue("exceptionType", event.exceptionType())
                 .addValue("stackTrace", event.stackTrace())
                 .addValue("attributes", toJson(event.attributes()))
+                .addValue("messageHash", event.messageHash())
+                .addValue("exceptionFingerprint", event.exceptionFingerprint())
+                .addValue("severityScore", event.severityScore())
                 .addValue("eventTimestamp", Timestamp.from(event.eventTimestamp()))
                 .addValue("receivedAt", Timestamp.from(event.receivedAt()));
     }
@@ -147,34 +201,37 @@ class JdbcLogRepository implements LogRepository {
         }
     }
 
-    private String attributesExpression(DataSource dataSource) {
+    private DbExpressions dbExpressions(DataSource dataSource) {
         try (Connection connection = dataSource.getConnection()) {
             DatabaseMetaData metadata = connection.getMetaData();
             String productName = metadata.getDatabaseProductName();
             if (productName != null && productName.toLowerCase().contains("postgres")) {
-                return "CAST(:attributes AS jsonb)";
+                return new DbExpressions("CAST(:attributes AS jsonb)", "ON CONFLICT (event_id) DO NOTHING");
             }
-            return ":attributes";
+            return new DbExpressions(":attributes", "");
         } catch (SQLException exception) {
             throw new IllegalStateException("Could not inspect database type", exception);
         }
     }
 
-    private String buildInsertSql(String attributesExpression) {
+    private String buildInsertSql(String attributesExpression, String conflictClause) {
         return """
                 INSERT INTO logs (
                     id, event_id, service_name, environment, level, message,
                     correlation_id, trace_id, span_id, parent_span_id, user_id,
                     transaction_id, module, exception_type, stack_trace, attributes,
+                    message_hash, exception_fingerprint, severity_score,
                     event_timestamp, received_at
                 )
                 VALUES (
                     :id, :eventId, :serviceName, :environment, :level, :message,
                     :correlationId, :traceId, :spanId, :parentSpanId, :userId,
                     :transactionId, :module, :exceptionType, :stackTrace, %s,
+                    :messageHash, :exceptionFingerprint, :severityScore,
                     :eventTimestamp, :receivedAt
                 )
-                """.formatted(attributesExpression);
+                %s
+                """.formatted(attributesExpression, conflictClause);
     }
 
     private QueryParts queryParts(LogSearchCriteria criteria) {
@@ -250,7 +307,8 @@ class JdbcLogRepository implements LogRepository {
                 resultSet.getString("user_id"),
                 resultSet.getString("transaction_id"),
                 resultSet.getString("module"),
-                resultSet.getString("exception_type")
+                resultSet.getString("exception_type"),
+                resultSet.getString("stack_trace")
         );
     }
 
@@ -259,5 +317,8 @@ class JdbcLogRepository implements LogRepository {
     }
 
     private record QueryParts(String whereClause, MapSqlParameterSource parameters) {
+    }
+
+    private record DbExpressions(String attributesExpression, String conflictClause) {
     }
 }

@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.smartlog.ingestion.kafka.KafkaPublishException;
 import com.smartlog.ingestion.pipeline.LogQueueFullException;
 import com.smartlog.ingestion.pipeline.LogPipelineMetrics;
+import com.smartlog.ingestion.ratelimit.RateLimitExceededException;
 import com.smartlog.ingestion.validation.InvalidLogRequestException;
+import com.smartlog.ingestion.validation.PayloadTooLargeException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -43,6 +45,20 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiErrorResponse> handleQueueFull(LogQueueFullException exception) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(new ApiErrorResponse("INGESTION_QUEUE_FULL", List.of(exception.getMessage()), Instant.now()));
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    ResponseEntity<ApiErrorResponse> handleRateLimit(RateLimitExceededException exception) {
+        metrics.incrementRejected(1);
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new ApiErrorResponse("RATE_LIMIT_EXCEEDED", List.of(exception.getMessage()), Instant.now()));
+    }
+
+    @ExceptionHandler(PayloadTooLargeException.class)
+    ResponseEntity<ApiErrorResponse> handlePayloadTooLarge(PayloadTooLargeException exception) {
+        metrics.incrementRejected(1);
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(new ApiErrorResponse("PAYLOAD_TOO_LARGE", List.of(exception.getMessage()), Instant.now()));
     }
 
     @ExceptionHandler(KafkaPublishException.class)

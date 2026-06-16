@@ -35,6 +35,7 @@ public class KafkaTopicsProperties {
         private String raw = "logs.raw";
         private String enriched = "logs.enriched";
         private String deadLetter = "logs.dead-letter";
+        private String alertsCreated = "alerts.created";
 
         public String raw() {
             return raw;
@@ -70,6 +71,18 @@ public class KafkaTopicsProperties {
 
         public void setDeadLetter(String deadLetter) {
             this.deadLetter = deadLetter;
+        }
+
+        public String alertsCreated() {
+            return alertsCreated;
+        }
+
+        public String getAlertsCreated() {
+            return alertsCreated;
+        }
+
+        public void setAlertsCreated(String alertsCreated) {
+            this.alertsCreated = alertsCreated;
         }
     }
 }

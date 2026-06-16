@@ -10,6 +10,13 @@ spring:
 smartlog:
   ingestion:
     mode: in-memory
+    validation:
+      max-payload-bytes: 262144
+      max-stack-trace-chars: 12000
+    rate-limit:
+      enabled: false
+      default-limit-per-window: 1000
+      window: 1m
   ai:
     llm-client: mock
 

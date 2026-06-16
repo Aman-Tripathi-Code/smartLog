@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -43,6 +44,19 @@ class JdbcIncidentSummaryRepository implements IncidentSummaryRepository {
                 )
                 """, parameters(summary));
         return findSaved(summary);
+    }
+
+    @Override
+    public Optional<IncidentSummaryRecord> findByAlertId(UUID alertId) {
+        List<IncidentSummaryRecord> summaries = jdbcTemplate.query("""
+                SELECT id, alert_id, correlation_id, summary, probable_cause, impacted_services,
+                       suggested_actions, confidence, summarizer_type, created_at
+                FROM incident_summaries
+                WHERE alert_id = :alertId
+                ORDER BY created_at DESC
+                LIMIT 1
+                """, new MapSqlParameterSource("alertId", alertId), this::mapSummary);
+        return summaries.stream().findFirst();
     }
 
     private IncidentSummaryRecord findSaved(IncidentSummaryRecord summary) {

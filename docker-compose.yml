@@ -51,6 +51,7 @@ services:
         kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic logs.raw --partitions 3 --replication-factor 1
         kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic logs.enriched --partitions 3 --replication-factor 1
         kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic logs.dead-letter --partitions 3 --replication-factor 1
+        kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic alerts.created --partitions 3 --replication-factor 1
 
   prometheus:
     image: prom/prometheus:v2.53.2

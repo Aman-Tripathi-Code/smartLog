@@ -5,8 +5,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
+import com.smartlog.alerting.model.AlertRecord;
+import com.smartlog.alerting.repository.AlertRepository;
 import com.smartlog.ai.incident.context.IncidentContext;
 import com.smartlog.ai.incident.dto.IncidentSummaryDraft;
 import com.smartlog.ai.incident.dto.IncidentSummaryResponse;
@@ -24,15 +28,18 @@ public class IncidentSummaryService {
     private final TraceTimelineService traceTimelineService;
     private final LlmClient llmClient;
     private final IncidentSummaryRepository repository;
+    private final AlertRepository alertRepository;
 
     public IncidentSummaryService(
             TraceTimelineService traceTimelineService,
             LlmClient llmClient,
-            IncidentSummaryRepository repository
+            IncidentSummaryRepository repository,
+            AlertRepository alertRepository
     ) {
         this.traceTimelineService = traceTimelineService;
         this.llmClient = llmClient;
         this.repository = repository;
+        this.alertRepository = alertRepository;
     }
 
     public IncidentSummaryResponse summarizeTraceIncident(String correlationId) {
@@ -54,6 +61,37 @@ public class IncidentSummaryService {
                 Instant.now()
         ));
 
+        return IncidentSummaryResponse.from(saved);
+    }
+
+    public IncidentSummaryResponse summarizeAlertIncident(UUID alertId) {
+        return repository.findByAlertId(alertId)
+                .map(IncidentSummaryResponse::from)
+                .orElseGet(() -> createAlertSummary(alertId));
+    }
+
+    private IncidentSummaryResponse createAlertSummary(UUID alertId) {
+        AlertRecord alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alert not found: " + alertId));
+        if (alert.sampleCorrelationId() == null || alert.sampleCorrelationId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Alert has no sample correlationId for incident summary");
+        }
+
+        TraceTimelineResponse timeline = traceTimelineService.timeline(alert.sampleCorrelationId());
+        RootCauseResponse rootCause = traceTimelineService.rootCause(alert.sampleCorrelationId());
+        IncidentSummaryDraft draft = llmClient.summarizeIncident(context(timeline, rootCause));
+        IncidentSummaryRecord saved = repository.save(new IncidentSummaryRecord(
+                UUID.randomUUID(),
+                alert.alertId(),
+                timeline.correlationId(),
+                draft.summary(),
+                draft.probableCause(),
+                draft.impactedServices(),
+                draft.suggestedActions(),
+                draft.confidence(),
+                draft.summarizerType(),
+                Instant.now()
+        ));
         return IncidentSummaryResponse.from(saved);
     }
 
