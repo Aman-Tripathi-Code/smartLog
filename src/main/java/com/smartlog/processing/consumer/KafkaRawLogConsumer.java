@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import com.smartlog.alerting.engine.AlertEngine;
 import com.smartlog.common.model.LogEvent;
 import com.smartlog.ingestion.kafka.KafkaMessagePublisher;
 import com.smartlog.ingestion.kafka.KafkaTopicsProperties;
@@ -23,6 +24,7 @@ public class KafkaRawLogConsumer {
     private final KafkaMessagePublisher messagePublisher;
     private final KafkaTopicsProperties properties;
     private final LogRepository repository;
+    private final AlertEngine alertEngine;
     private final LogPipelineMetrics metrics;
 
     public KafkaRawLogConsumer(
@@ -30,12 +32,14 @@ public class KafkaRawLogConsumer {
             KafkaMessagePublisher messagePublisher,
             KafkaTopicsProperties properties,
             LogRepository repository,
+            AlertEngine alertEngine,
             LogPipelineMetrics metrics
     ) {
         this.objectMapper = objectMapper;
         this.messagePublisher = messagePublisher;
         this.properties = properties;
         this.repository = repository;
+        this.alertEngine = alertEngine;
         this.metrics = metrics;
     }
 
@@ -45,6 +49,7 @@ public class KafkaRawLogConsumer {
             LogEvent event = parseAndValidate(payload);
             messagePublisher.send(properties.topics().enriched(), kafkaKey(event), objectMapper.writeValueAsString(event));
             repository.save(event);
+            alertEngine.evaluate(event);
             metrics.incrementPersisted(1);
         } catch (Exception exception) {
             metrics.incrementFailed(1);

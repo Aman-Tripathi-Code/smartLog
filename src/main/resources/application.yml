@@ -53,3 +53,6 @@ smartlog:
       raw: logs.raw
       enriched: logs.enriched
       dead-letter: logs.dead-letter
+  alerting:
+    error-threshold: 100
+    window: 5m

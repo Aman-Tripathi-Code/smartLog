@@ -12,6 +12,11 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.Test;
 
+import com.smartlog.alerting.engine.AlertEngine;
+import com.smartlog.alerting.engine.AlertingProperties;
+import com.smartlog.alerting.model.AlertRecord;
+import com.smartlog.alerting.repository.AlertRepository;
+import com.smartlog.analytics.topk.TopErrorEvent;
 import com.smartlog.common.enums.LogLevel;
 import com.smartlog.common.model.LogEvent;
 import com.smartlog.ingestion.kafka.KafkaMessagePublisher;
@@ -36,6 +41,7 @@ class KafkaRawLogConsumerTest {
                 publisher,
                 properties(),
                 repository,
+                alertEngine(),
                 metrics
         );
 
@@ -61,6 +67,7 @@ class KafkaRawLogConsumerTest {
                 publisher,
                 properties(),
                 repository,
+                alertEngine(),
                 metrics
         );
 
@@ -87,6 +94,12 @@ class KafkaRawLogConsumerTest {
         return new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    }
+
+    private AlertEngine alertEngine() {
+        AlertingProperties properties = new AlertingProperties();
+        properties.setErrorThreshold(100);
+        return new AlertEngine(new RecordingAlertRepository(), properties);
     }
 
     private LogEvent event(String eventId) {
@@ -145,8 +158,31 @@ class KafkaRawLogConsumerTest {
         public List<TraceLogEvent> findByCorrelationId(String correlationId) {
             return List.of();
         }
+
+        @Override
+        public List<TopErrorEvent> findErrorEventsSince(Instant from) {
+            return List.of();
+        }
     }
 
     private record SentMessage(String topic, String key, String payload) {
+    }
+
+    private static final class RecordingAlertRepository implements AlertRepository {
+
+        @Override
+        public AlertRecord save(AlertRecord alert) {
+            return alert;
+        }
+
+        @Override
+        public List<AlertRecord> findAll() {
+            return List.of();
+        }
+
+        @Override
+        public java.util.Optional<AlertRecord> findById(java.util.UUID alertId) {
+            return java.util.Optional.empty();
+        }
     }
 }

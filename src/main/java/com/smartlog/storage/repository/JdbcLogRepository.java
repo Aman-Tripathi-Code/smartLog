@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import com.smartlog.analytics.topk.TopErrorEvent;
 import com.smartlog.common.model.LogEvent;
 import com.smartlog.query.dto.LogSearchCriteria;
 import com.smartlog.query.dto.LogSearchPage;
@@ -96,6 +97,24 @@ class JdbcLogRepository implements LogRepository {
                 .addValue("correlationId", correlationId);
 
         return jdbcTemplate.query(sql, parameters, this::mapTraceLogEvent);
+    }
+
+    @Override
+    public List<TopErrorEvent> findErrorEventsSince(Instant from) {
+        String sql = """
+                SELECT message, exception_type
+                FROM logs
+                WHERE level IN ('ERROR', 'FATAL')
+                  AND event_timestamp >= :from
+                """;
+
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("from", Timestamp.from(from));
+
+        return jdbcTemplate.query(sql, parameters, (resultSet, rowNumber) -> new TopErrorEvent(
+                resultSet.getString("message"),
+                resultSet.getString("exception_type")
+        ));
     }
 
     private MapSqlParameterSource parameters(LogEvent event) {

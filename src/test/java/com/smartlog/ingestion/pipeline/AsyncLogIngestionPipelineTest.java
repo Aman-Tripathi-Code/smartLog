@@ -13,6 +13,11 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
+import com.smartlog.alerting.engine.AlertEngine;
+import com.smartlog.alerting.engine.AlertingProperties;
+import com.smartlog.alerting.model.AlertRecord;
+import com.smartlog.alerting.repository.AlertRepository;
+import com.smartlog.analytics.topk.TopErrorEvent;
 import com.smartlog.common.enums.LogLevel;
 import com.smartlog.common.model.LogEvent;
 import com.smartlog.query.dto.LogSearchCriteria;
@@ -29,6 +34,7 @@ class AsyncLogIngestionPipelineTest {
         LogPipelineMetrics metrics = new LogPipelineMetrics();
         AsyncLogIngestionPipeline pipeline = new AsyncLogIngestionPipeline(
                 repository,
+                alertEngine(),
                 properties(1, 1, 1),
                 metrics
         );
@@ -59,6 +65,7 @@ class AsyncLogIngestionPipelineTest {
         LogPipelineMetrics metrics = new LogPipelineMetrics();
         AsyncLogIngestionPipeline pipeline = new AsyncLogIngestionPipeline(
                 repository,
+                alertEngine(),
                 properties(10, 3, 1),
                 metrics
         );
@@ -90,6 +97,12 @@ class AsyncLogIngestionPipelineTest {
         properties.setPollTimeout(Duration.ofMillis(25));
         properties.setShutdownTimeout(Duration.ofSeconds(2));
         return properties;
+    }
+
+    private AlertEngine alertEngine() {
+        AlertingProperties properties = new AlertingProperties();
+        properties.setErrorThreshold(100);
+        return new AlertEngine(new RecordingAlertRepository(), properties);
     }
 
     private LogEvent event(String eventId, LogLevel level) {
@@ -154,8 +167,31 @@ class AsyncLogIngestionPipelineTest {
             return List.of();
         }
 
+        @Override
+        public List<TopErrorEvent> findErrorEventsSince(Instant from) {
+            return List.of();
+        }
+
         private void releaseWrites() {
             releaseWrites.countDown();
+        }
+    }
+
+    private static final class RecordingAlertRepository implements AlertRepository {
+
+        @Override
+        public AlertRecord save(AlertRecord alert) {
+            return alert;
+        }
+
+        @Override
+        public List<AlertRecord> findAll() {
+            return List.of();
+        }
+
+        @Override
+        public java.util.Optional<AlertRecord> findById(java.util.UUID alertId) {
+            return java.util.Optional.empty();
         }
     }
 }

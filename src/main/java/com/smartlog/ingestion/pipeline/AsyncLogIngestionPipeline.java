@@ -18,6 +18,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
+import com.smartlog.alerting.engine.AlertEngine;
 import com.smartlog.common.model.LogEvent;
 import com.smartlog.storage.repository.LogRepository;
 
@@ -28,6 +29,7 @@ public class AsyncLogIngestionPipeline implements LogEventPublisher, SmartLifecy
     private static final Logger LOGGER = LoggerFactory.getLogger(AsyncLogIngestionPipeline.class);
 
     private final LogRepository repository;
+    private final AlertEngine alertEngine;
     private final LogPipelineMetrics metrics;
     private final BlockingQueue<LogEvent> queue;
     private final int batchSize;
@@ -41,10 +43,12 @@ public class AsyncLogIngestionPipeline implements LogEventPublisher, SmartLifecy
 
     public AsyncLogIngestionPipeline(
             LogRepository repository,
+            AlertEngine alertEngine,
             LogPipelineProperties properties,
             LogPipelineMetrics metrics
     ) {
         this.repository = repository;
+        this.alertEngine = alertEngine;
         this.metrics = metrics;
         this.queue = new ArrayBlockingQueue<>(positive(properties.queueCapacity(), "queueCapacity"));
         this.batchSize = positive(properties.batchSize(), "batchSize");
@@ -162,6 +166,7 @@ public class AsyncLogIngestionPipeline implements LogEventPublisher, SmartLifecy
         batch.clear();
         try {
             repository.saveAll(toPersist);
+            toPersist.forEach(alertEngine::evaluate);
             metrics.incrementPersisted(toPersist.size());
             metrics.incrementBatchesPersisted();
         } catch (RuntimeException exception) {

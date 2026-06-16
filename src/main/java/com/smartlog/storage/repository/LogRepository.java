@@ -2,6 +2,7 @@ package com.smartlog.storage.repository;
 
 import java.util.List;
 
+import com.smartlog.analytics.topk.TopErrorEvent;
 import com.smartlog.common.model.LogEvent;
 import com.smartlog.query.dto.LogSearchCriteria;
 import com.smartlog.query.dto.LogSearchPage;
@@ -17,4 +18,6 @@ public interface LogRepository {
     LogSearchPage<LogSearchResult> search(LogSearchCriteria criteria);
 
     List<TraceLogEvent> findByCorrelationId(String correlationId);
+
+    List<TopErrorEvent> findErrorEventsSince(java.time.Instant from);
 }

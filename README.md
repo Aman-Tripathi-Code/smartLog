@@ -24,6 +24,8 @@ Checkpoint 6 adds an asynchronous in-memory ingestion pipeline. Accepted logs ar
 
 Checkpoint 7 adds Kafka-based event-driven ingestion. The default runtime mode publishes accepted logs to `logs.raw`; a Kafka consumer processes raw events, emits valid events to `logs.enriched`, writes them to PostgreSQL, and sends malformed payloads to `logs.dead-letter`. The previous bounded in-memory queue remains available with `smartlog.ingestion.mode=in-memory` for local development or tests when Kafka is disabled.
 
+Checkpoint 8 adds alerting and analytics. Persisted ERROR/FATAL events are evaluated with a per-service sliding window, alerts are stored in PostgreSQL when the threshold is exceeded, and the analytics API returns top recurring errors using a HashMap + PriorityQueue top-K ranking flow.
+
 Current local commands:
 
 ```bash
@@ -47,6 +49,9 @@ POST http://localhost:8080/api/v1/logs/batch
 GET  http://localhost:8080/api/v1/logs/search
 GET  http://localhost:8080/api/v1/traces/{correlationId}
 GET  http://localhost:8080/api/v1/traces/{correlationId}/root-cause
+GET  http://localhost:8080/api/v1/alerts
+GET  http://localhost:8080/api/v1/alerts/{alertId}
+GET  http://localhost:8080/api/v1/analytics/top-errors?window=10m&limit=5
 ```
 
 Ingestion pipeline configuration:
@@ -67,6 +72,9 @@ smartlog:
       raw: logs.raw
       enriched: logs.enriched
       dead-letter: logs.dead-letter
+  alerting:
+    error-threshold: 100
+    window: 5m
 ```
 
 `POST /api/v1/logs` and `POST /api/v1/logs/batch` return `202 Accepted` after validation and publish to the configured ingestion pipeline, not after the row is durably written. In the default Kafka mode, search and trace APIs observe the log after the raw-topic consumer processes it and persists it. In in-memory mode, they observe the log after the local worker flushes its batch.
@@ -179,6 +187,14 @@ curl "http://localhost:8080/api/v1/traces/corr-12345/root-cause"
 
 The root-cause response for this trace identifies `limit-check-service` with message `Customer limit validation failed`, exception type `LimitExceededException`, and confidence `BASIC_RULE_BASED`.
 
+Alert and analytics examples:
+
+```bash
+curl "http://localhost:8080/api/v1/alerts"
+curl "http://localhost:8080/api/v1/alerts/{alertId}"
+curl "http://localhost:8080/api/v1/analytics/top-errors?window=10m&limit=5"
+```
+
 Database migration notes:
 
 ```text
@@ -188,7 +204,7 @@ Test migrations:       src/test/resources/db/migration/h2
 
 `mvn test` verifies the migration-managed schema using H2 in PostgreSQL compatibility mode. Full PostgreSQL integration testing with Testcontainers is not enabled yet because Docker is not available in this local environment; when Docker is installed, add Testcontainers PostgreSQL coverage for the same Flyway migration.
 
-The code intentionally does not implement alerting or analytics yet. Those belong to later checkpoints in `GOAL.md`.
+The code intentionally does not implement the AI incident summarizer yet. That belongs to a later checkpoint in `GOAL.md`.
 
 ---
 
