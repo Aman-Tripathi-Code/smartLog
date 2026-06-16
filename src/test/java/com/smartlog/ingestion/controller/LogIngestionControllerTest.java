@@ -56,7 +56,7 @@ class LogIngestionControllerTest {
         assertThat(response.getBody()).containsEntry("eventId", "evt-001");
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT service_name, level, message, correlation_id, attributes FROM logs WHERE event_id = ?",
+                "SELECT service_name, level, message, correlation_id, attributes, received_at, created_at FROM logs WHERE event_id = ?",
                 "evt-001"
         );
         assertThat(row).containsEntry("SERVICE_NAME", "limit-check-service");
@@ -64,6 +64,8 @@ class LogIngestionControllerTest {
         assertThat(row).containsEntry("MESSAGE", "Customer limit validation failed");
         assertThat(row).containsEntry("CORRELATION_ID", "corr-12345");
         assertThat(row.get("ATTRIBUTES").toString()).contains("\"customerId\":\"C1001\"");
+        assertThat(row.get("RECEIVED_AT")).isNotNull();
+        assertThat(row.get("CREATED_AT")).isNotNull();
     }
 
     @Test

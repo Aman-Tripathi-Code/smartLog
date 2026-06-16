@@ -4,7 +4,5 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema-test.sql
+  flyway:
+    locations: classpath:db/migration/h2

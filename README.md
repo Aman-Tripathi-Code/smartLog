@@ -14,6 +14,8 @@ Checkpoint 1 created the initial Java 21 Spring Boot 3 Maven application as a si
 
 Checkpoint 2 adds REST-first structured log ingestion. Logs are validated, assigned an event ID when missing, stamped with `receivedAt`, and stored directly in PostgreSQL through Spring JDBC. Kafka, search, trace reconstruction, alerting, analytics, SDK behavior, and UI are intentionally not implemented yet.
 
+Checkpoint 3 moves database ownership to Flyway migrations. The PostgreSQL migration creates `logs` and `alerts` with UUID primary keys, timestamps, uniqueness on `event_id`, and indexes for correlation, trace, user, transaction, service/time, and level/time access patterns.
+
 Current local commands:
 
 ```bash
@@ -35,6 +37,15 @@ Structured ingestion endpoints:
 POST http://localhost:8080/api/v1/logs
 POST http://localhost:8080/api/v1/logs/batch
 ```
+
+Database migration notes:
+
+```text
+Production migrations: src/main/resources/db/migration/postgresql
+Test migrations:       src/test/resources/db/migration/h2
+```
+
+`mvn test` verifies the migration-managed schema using H2 in PostgreSQL compatibility mode. Full PostgreSQL integration testing with Testcontainers is not enabled yet because Docker is not available in this local environment; when Docker is installed, add Testcontainers PostgreSQL coverage for the same Flyway migration.
 
 The code intentionally does not implement search, Kafka, alerting, or analytics yet. Those belong to later checkpoints in `GOAL.md`.
 

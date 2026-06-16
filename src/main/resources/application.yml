@@ -5,10 +5,8 @@ spring:
     url: jdbc:postgresql://localhost:5432/smartlog
     username: smartlog
     password: smartlog
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:db/schema-postgres.sql
+  flyway:
+    locations: classpath:db/migration/postgresql
 
 server:
   port: 8080
