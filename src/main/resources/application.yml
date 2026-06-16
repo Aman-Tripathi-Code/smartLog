@@ -1,6 +1,14 @@
 spring:
   application:
     name: smartlog
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartlog
+    username: smartlog
+    password: smartlog
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/schema-postgres.sql
 
 server:
   port: 8080
@@ -18,4 +26,3 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui/index.html
-

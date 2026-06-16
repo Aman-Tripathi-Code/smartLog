@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS logs (
+    id UUID PRIMARY KEY,
+    event_id VARCHAR(100) NOT NULL,
+    service_name VARCHAR(150) NOT NULL,
+    environment VARCHAR(50),
+    level VARCHAR(20) NOT NULL,
+    message TEXT NOT NULL,
+    correlation_id VARCHAR(150),
+    trace_id VARCHAR(150),
+    span_id VARCHAR(150),
+    parent_span_id VARCHAR(150),
+    user_id VARCHAR(150),
+    transaction_id VARCHAR(150),
+    module VARCHAR(150),
+    exception_type VARCHAR(255),
+    stack_trace TEXT,
+    attributes JSONB,
+    event_timestamp TIMESTAMP NOT NULL,
+    received_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT ux_logs_event_id UNIQUE (event_id)
+);
