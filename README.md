@@ -16,6 +16,8 @@ Checkpoint 2 adds REST-first structured log ingestion. Logs are validated, assig
 
 Checkpoint 3 moves database ownership to Flyway migrations. The PostgreSQL migration creates `logs` and `alerts` with UUID primary keys, timestamps, uniqueness on `event_id`, and indexes for correlation, trace, user, transaction, service/time, and level/time access patterns.
 
+Checkpoint 4 adds log search over the `logs` table. Results support service, level, time range, keyword, correlation, trace, user, and transaction filters with page/size pagination and default timestamp-descending ordering.
+
 Current local commands:
 
 ```bash
@@ -36,6 +38,17 @@ Structured ingestion endpoints:
 ```http
 POST http://localhost:8080/api/v1/logs
 POST http://localhost:8080/api/v1/logs/batch
+GET  http://localhost:8080/api/v1/logs/search
+```
+
+Search examples:
+
+```bash
+curl "http://localhost:8080/api/v1/logs/search?serviceName=limit-check-service&page=0&size=20"
+curl "http://localhost:8080/api/v1/logs/search?level=ERROR&from=2026-06-16T10:00:00Z&to=2026-06-16T11:00:00Z"
+curl "http://localhost:8080/api/v1/logs/search?correlationId=corr-12345"
+curl "http://localhost:8080/api/v1/logs/search?traceId=trace-abc&userId=U1001&transactionId=TF-9081"
+curl "http://localhost:8080/api/v1/logs/search?keyword=validation"
 ```
 
 Database migration notes:
@@ -47,7 +60,7 @@ Test migrations:       src/test/resources/db/migration/h2
 
 `mvn test` verifies the migration-managed schema using H2 in PostgreSQL compatibility mode. Full PostgreSQL integration testing with Testcontainers is not enabled yet because Docker is not available in this local environment; when Docker is installed, add Testcontainers PostgreSQL coverage for the same Flyway migration.
 
-The code intentionally does not implement search, Kafka, alerting, or analytics yet. Those belong to later checkpoints in `GOAL.md`.
+The code intentionally does not implement trace timeline reconstruction, root-cause analysis, Kafka, alerting, or analytics yet. Those belong to later checkpoints in `GOAL.md`.
 
 ---
 
