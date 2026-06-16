@@ -13,6 +13,7 @@ public class LogPipelineMetrics {
     private final AtomicLong persisted = new AtomicLong();
     private final AtomicLong failed = new AtomicLong();
     private final AtomicLong batchesPersisted = new AtomicLong();
+    private final AtomicLong alertsGenerated = new AtomicLong();
     private volatile IntSupplier queueDepthSupplier = () -> 0;
 
     public void bindQueueDepth(IntSupplier queueDepthSupplier) {
@@ -39,6 +40,10 @@ public class LogPipelineMetrics {
         batchesPersisted.incrementAndGet();
     }
 
+    public void incrementAlertsGenerated() {
+        alertsGenerated.incrementAndGet();
+    }
+
     public long accepted() {
         return accepted.get();
     }
@@ -57,6 +62,10 @@ public class LogPipelineMetrics {
 
     public long batchesPersisted() {
         return batchesPersisted.get();
+    }
+
+    public long alertsGenerated() {
+        return alertsGenerated.get();
     }
 
     public int queueDepth() {

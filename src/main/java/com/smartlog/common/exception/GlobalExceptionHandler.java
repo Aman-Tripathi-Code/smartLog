@@ -11,13 +11,21 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.smartlog.ingestion.kafka.KafkaPublishException;
 import com.smartlog.ingestion.pipeline.LogQueueFullException;
+import com.smartlog.ingestion.pipeline.LogPipelineMetrics;
 import com.smartlog.ingestion.validation.InvalidLogRequestException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private final LogPipelineMetrics metrics;
+
+    public GlobalExceptionHandler(LogPipelineMetrics metrics) {
+        this.metrics = metrics;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException exception) {
+        metrics.incrementRejected(1);
         List<String> details = exception.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .toList();
@@ -27,6 +35,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidLogRequestException.class)
     ResponseEntity<ApiErrorResponse> handleInvalidLogRequest(InvalidLogRequestException exception) {
+        metrics.incrementRejected(1);
         return badRequest(List.of(exception.getMessage()));
     }
 

@@ -15,6 +15,7 @@ import com.smartlog.alerting.model.AlertRecord;
 import com.smartlog.alerting.repository.AlertRepository;
 import com.smartlog.common.enums.LogLevel;
 import com.smartlog.common.model.LogEvent;
+import com.smartlog.ingestion.pipeline.LogPipelineMetrics;
 
 @Service
 public class AlertEngine {
@@ -24,12 +25,14 @@ public class AlertEngine {
 
     private final AlertRepository repository;
     private final AlertingProperties properties;
+    private final LogPipelineMetrics metrics;
     private final Map<String, Deque<Instant>> serviceErrorWindows = new HashMap<>();
     private final Map<String, Instant> lastAlertByService = new HashMap<>();
 
-    public AlertEngine(AlertRepository repository, AlertingProperties properties) {
+    public AlertEngine(AlertRepository repository, AlertingProperties properties, LogPipelineMetrics metrics) {
         this.repository = repository;
         this.properties = properties;
+        this.metrics = metrics;
     }
 
     public synchronized Optional<AlertRecord> evaluate(LogEvent event) {
@@ -60,7 +63,9 @@ public class AlertEngine {
 
         AlertRecord alert = alert(event, windowStart, eventTime, count, window);
         lastAlertByService.put(serviceName, eventTime);
-        return Optional.of(repository.save(alert));
+        AlertRecord savedAlert = repository.save(alert);
+        metrics.incrementAlertsGenerated();
+        return Optional.of(savedAlert);
     }
 
     private AlertRecord alert(LogEvent event, Instant windowStart, Instant windowEnd, int count, Duration window) {

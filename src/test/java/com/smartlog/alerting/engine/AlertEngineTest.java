@@ -16,13 +16,15 @@ import com.smartlog.alerting.model.AlertRecord;
 import com.smartlog.alerting.repository.AlertRepository;
 import com.smartlog.common.enums.LogLevel;
 import com.smartlog.common.model.LogEvent;
+import com.smartlog.ingestion.pipeline.LogPipelineMetrics;
 
 class AlertEngineTest {
 
     @Test
     void triggersAlertWhenErrorCountExceedsThresholdInsideWindow() {
         RecordingAlertRepository repository = new RecordingAlertRepository();
-        AlertEngine engine = new AlertEngine(repository, properties(2, Duration.ofMinutes(10)));
+        LogPipelineMetrics metrics = new LogPipelineMetrics();
+        AlertEngine engine = new AlertEngine(repository, properties(2, Duration.ofMinutes(10)), metrics);
 
         engine.evaluate(event("evt-1", Instant.parse("2026-06-16T10:00:00Z")));
         engine.evaluate(event("evt-2", Instant.parse("2026-06-16T10:01:00Z")));
@@ -33,18 +35,21 @@ class AlertEngineTest {
         assertThat(repository.savedAlerts.getFirst().serviceName()).isEqualTo("limit-check-service");
         assertThat(repository.savedAlerts.getFirst().eventCount()).isEqualTo(3);
         assertThat(repository.savedAlerts.getFirst().alertType()).isEqualTo("HIGH_ERROR_RATE");
+        assertThat(metrics.alertsGenerated()).isEqualTo(1);
     }
 
     @Test
     void doesNotTriggerAlertBelowThreshold() {
         RecordingAlertRepository repository = new RecordingAlertRepository();
-        AlertEngine engine = new AlertEngine(repository, properties(3, Duration.ofMinutes(10)));
+        LogPipelineMetrics metrics = new LogPipelineMetrics();
+        AlertEngine engine = new AlertEngine(repository, properties(3, Duration.ofMinutes(10)), metrics);
 
         engine.evaluate(event("evt-1", Instant.parse("2026-06-16T10:00:00Z")));
         engine.evaluate(event("evt-2", Instant.parse("2026-06-16T10:01:00Z")));
         engine.evaluate(event("evt-3", Instant.parse("2026-06-16T10:02:00Z")));
 
         assertThat(repository.savedAlerts).isEmpty();
+        assertThat(metrics.alertsGenerated()).isZero();
     }
 
     private AlertingProperties properties(int threshold, Duration window) {

@@ -23,5 +23,15 @@ class HealthEndpointSmokeTest {
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(response.getBody()).containsEntry("status", "UP");
     }
-}
 
+    @Test
+    void prometheusEndpointExposesSmartLogMetrics() {
+        ResponseEntity<String> response = restTemplate.getForEntity("/actuator/prometheus", String.class);
+
+        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(response.getBody()).contains("smartlog_logs_accepted_total");
+        assertThat(response.getBody()).contains("smartlog_logs_rejected_total");
+        assertThat(response.getBody()).contains("smartlog_ingestion_queue_size");
+        assertThat(response.getBody()).contains("smartlog_alerts_generated_total");
+    }
+}

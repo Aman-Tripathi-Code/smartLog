@@ -26,11 +26,13 @@ Checkpoint 7 adds Kafka-based event-driven ingestion. The default runtime mode p
 
 Checkpoint 8 adds alerting and analytics. Persisted ERROR/FATAL events are evaluated with a per-service sliding window, alerts are stored in PostgreSQL when the threshold is exceeded, and the analytics API returns top recurring errors using a HashMap + PriorityQueue top-K ranking flow.
 
+Checkpoint 9 adds project observability and benchmark polish. SmartLog now exposes Prometheus metrics, includes Prometheus and Grafana Docker Compose services, ships a Grafana dashboard JSON, provides a k6 ingestion load test, includes a benchmark report template, and has a sample log generator for demo trade-finance traces.
+
 Current local commands:
 
 ```bash
 mvn test
-docker compose up -d postgres kafka kafka-init
+docker compose up -d postgres kafka kafka-init prometheus grafana
 mvn spring-boot:run
 ```
 
@@ -38,7 +40,22 @@ Health and API documentation endpoints:
 
 ```http
 GET http://localhost:8080/actuator/health
+GET http://localhost:8080/actuator/prometheus
 GET http://localhost:8080/swagger-ui/index.html
+```
+
+Observability endpoints:
+
+```http
+Prometheus: http://localhost:9090
+Grafana:    http://localhost:3000
+```
+
+Grafana login:
+
+```text
+username: admin
+password: smartlog
 ```
 
 Structured ingestion endpoints:
@@ -187,6 +204,13 @@ curl "http://localhost:8080/api/v1/traces/corr-12345/root-cause"
 
 The root-cause response for this trace identifies `limit-check-service` with message `Customer limit validation failed`, exception type `LimitExceededException`, and confidence `BASIC_RULE_BASED`.
 
+Generate demo data:
+
+```powershell
+.\scripts\generate-sample-logs.ps1 -BaseUrl "http://localhost:8080" -Transactions 5
+.\scripts\generate-sample-logs.ps1 -BaseUrl "http://localhost:8080" -Transactions 20 -ErrorSpike
+```
+
 Alert and analytics examples:
 
 ```bash
@@ -194,6 +218,28 @@ curl "http://localhost:8080/api/v1/alerts"
 curl "http://localhost:8080/api/v1/alerts/{alertId}"
 curl "http://localhost:8080/api/v1/analytics/top-errors?window=10m&limit=5"
 ```
+
+Prometheus metric names:
+
+```text
+smartlog_logs_accepted_total
+smartlog_logs_rejected_total
+smartlog_logs_persisted_total
+smartlog_logs_failed_total
+smartlog_ingestion_queue_size
+smartlog_db_batch_inserts_total
+smartlog_kafka_consumer_lag
+smartlog_alerts_generated_total
+```
+
+Run the k6 load test:
+
+```bash
+k6 run load-tests/smartlog-ingestion.k6.js
+k6 run -e BASE_URL=http://localhost:8080 -e VUS=10 -e DURATION=5m load-tests/smartlog-ingestion.k6.js
+```
+
+Record real benchmark results in `docs/benchmarks.md` after a completed run.
 
 Database migration notes:
 

@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: SmartLog
+    orgId: 1
+    folder: SmartLog
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

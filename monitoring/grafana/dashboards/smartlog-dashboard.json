@@ -1,0 +1,123 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "targets": [
+        {
+          "expr": "sum(rate(smartlog_logs_accepted_total[1m]))",
+          "legendFormat": "accepted/s"
+        },
+        {
+          "expr": "sum(rate(smartlog_logs_rejected_total[1m]))",
+          "legendFormat": "rejected/s"
+        }
+      ],
+      "title": "Ingestion Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "smartlog_ingestion_queue_size",
+          "legendFormat": "queue depth"
+        },
+        {
+          "expr": "smartlog_kafka_consumer_lag",
+          "legendFormat": "consumer lag"
+        }
+      ],
+      "title": "Backlog",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "sum(rate(smartlog_db_batch_inserts_total[1m]))",
+          "legendFormat": "batch inserts/s"
+        },
+        {
+          "expr": "sum(rate(smartlog_alerts_generated_total[1m]))",
+          "legendFormat": "alerts/s"
+        }
+      ],
+      "title": "Storage And Alerts",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": [
+    "smartlog",
+    "observability"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SmartLog Observability",
+  "uid": "smartlog-observability",
+  "version": 1,
+  "weekStart": ""
+}

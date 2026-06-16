@@ -99,7 +99,7 @@ class KafkaRawLogConsumerTest {
     private AlertEngine alertEngine() {
         AlertingProperties properties = new AlertingProperties();
         properties.setErrorThreshold(100);
-        return new AlertEngine(new RecordingAlertRepository(), properties);
+        return new AlertEngine(new RecordingAlertRepository(), properties, new LogPipelineMetrics());
     }
 
     private LogEvent event(String eventId) {
