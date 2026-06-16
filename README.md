@@ -18,6 +18,8 @@ Checkpoint 3 moves database ownership to Flyway migrations. The PostgreSQL migra
 
 Checkpoint 4 adds log search over the `logs` table. Results support service, level, time range, keyword, correlation, trace, user, and transaction filters with page/size pagination and default timestamp-descending ordering.
 
+Checkpoint 5 adds distributed trace lookup and basic root-cause detection. A trace can be fetched by `correlationId` in timestamp-ascending order, and the root-cause endpoint returns the first ERROR or FATAL log with `BASIC_RULE_BASED` confidence.
+
 Current local commands:
 
 ```bash
@@ -39,6 +41,8 @@ Structured ingestion endpoints:
 POST http://localhost:8080/api/v1/logs
 POST http://localhost:8080/api/v1/logs/batch
 GET  http://localhost:8080/api/v1/logs/search
+GET  http://localhost:8080/api/v1/traces/{correlationId}
+GET  http://localhost:8080/api/v1/traces/{correlationId}/root-cause
 ```
 
 Search examples:
@@ -51,6 +55,78 @@ curl "http://localhost:8080/api/v1/logs/search?traceId=trace-abc&userId=U1001&tr
 curl "http://localhost:8080/api/v1/logs/search?keyword=validation"
 ```
 
+Sample microservice trace:
+
+```bash
+curl -X POST "http://localhost:8080/api/v1/logs/batch" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "logs": [
+      {
+        "eventId": "evt-auth-9081",
+        "timestamp": "2026-06-16T10:30:01Z",
+        "serviceName": "auth-service",
+        "environment": "dev",
+        "level": "INFO",
+        "message": "User authenticated",
+        "correlationId": "corr-12345",
+        "traceId": "trace-abc",
+        "spanId": "span-auth-001",
+        "userId": "U1001",
+        "transactionId": "TF-9081"
+      },
+      {
+        "eventId": "evt-trade-9081",
+        "timestamp": "2026-06-16T10:30:03Z",
+        "serviceName": "trade-service",
+        "environment": "dev",
+        "level": "INFO",
+        "message": "Trade transaction created",
+        "correlationId": "corr-12345",
+        "traceId": "trace-abc",
+        "spanId": "span-trade-001",
+        "parentSpanId": "span-auth-001",
+        "userId": "U1001",
+        "transactionId": "TF-9081"
+      },
+      {
+        "eventId": "evt-limit-9081",
+        "timestamp": "2026-06-16T10:30:05Z",
+        "serviceName": "limit-check-service",
+        "environment": "dev",
+        "level": "ERROR",
+        "message": "Customer limit validation failed",
+        "correlationId": "corr-12345",
+        "traceId": "trace-abc",
+        "spanId": "span-limit-001",
+        "parentSpanId": "span-trade-001",
+        "userId": "U1001",
+        "transactionId": "TF-9081",
+        "exceptionType": "LimitExceededException"
+      },
+      {
+        "eventId": "evt-workflow-9081",
+        "timestamp": "2026-06-16T10:30:06Z",
+        "serviceName": "workflow-service",
+        "environment": "dev",
+        "level": "WARN",
+        "message": "Workflow stopped due to validation failure",
+        "correlationId": "corr-12345",
+        "traceId": "trace-abc",
+        "spanId": "span-workflow-001",
+        "parentSpanId": "span-limit-001",
+        "userId": "U1001",
+        "transactionId": "TF-9081"
+      }
+    ]
+  }'
+
+curl "http://localhost:8080/api/v1/traces/corr-12345"
+curl "http://localhost:8080/api/v1/traces/corr-12345/root-cause"
+```
+
+The root-cause response for this trace identifies `limit-check-service` with message `Customer limit validation failed`, exception type `LimitExceededException`, and confidence `BASIC_RULE_BASED`.
+
 Database migration notes:
 
 ```text
@@ -60,7 +136,7 @@ Test migrations:       src/test/resources/db/migration/h2
 
 `mvn test` verifies the migration-managed schema using H2 in PostgreSQL compatibility mode. Full PostgreSQL integration testing with Testcontainers is not enabled yet because Docker is not available in this local environment; when Docker is installed, add Testcontainers PostgreSQL coverage for the same Flyway migration.
 
-The code intentionally does not implement trace timeline reconstruction, root-cause analysis, Kafka, alerting, or analytics yet. Those belong to later checkpoints in `GOAL.md`.
+The code intentionally does not implement Kafka, alerting, or analytics yet. Those belong to later checkpoints in `GOAL.md`.
 
 ---
 

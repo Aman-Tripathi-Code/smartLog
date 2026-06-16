@@ -6,6 +6,7 @@ import com.smartlog.common.model.LogEvent;
 import com.smartlog.query.dto.LogSearchCriteria;
 import com.smartlog.query.dto.LogSearchPage;
 import com.smartlog.query.dto.LogSearchResult;
+import com.smartlog.trace.dto.TraceLogEvent;
 
 public interface LogRepository {
 
@@ -14,4 +15,6 @@ public interface LogRepository {
     void saveAll(List<LogEvent> events);
 
     LogSearchPage<LogSearchResult> search(LogSearchCriteria criteria);
+
+    List<TraceLogEvent> findByCorrelationId(String correlationId);
 }

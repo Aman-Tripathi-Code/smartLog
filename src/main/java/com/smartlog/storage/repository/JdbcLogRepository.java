@@ -23,6 +23,7 @@ import com.smartlog.common.model.LogEvent;
 import com.smartlog.query.dto.LogSearchCriteria;
 import com.smartlog.query.dto.LogSearchPage;
 import com.smartlog.query.dto.LogSearchResult;
+import com.smartlog.trace.dto.TraceLogEvent;
 
 @Repository
 class JdbcLogRepository implements LogRepository {
@@ -78,6 +79,23 @@ class JdbcLogRepository implements LogRepository {
 
         List<LogSearchResult> items = jdbcTemplate.query(searchSql, parameters, this::mapSearchResult);
         return new LogSearchPage<>(total == null ? 0 : total, criteria.page(), criteria.size(), items);
+    }
+
+    @Override
+    public List<TraceLogEvent> findByCorrelationId(String correlationId) {
+        String sql = """
+                SELECT event_id, event_timestamp, received_at, service_name, environment, level, message,
+                       correlation_id, trace_id, span_id, parent_span_id, user_id, transaction_id,
+                       module, exception_type
+                FROM logs
+                WHERE correlation_id = :correlationId
+                ORDER BY event_timestamp ASC, received_at ASC
+                """;
+
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("correlationId", correlationId);
+
+        return jdbcTemplate.query(sql, parameters, this::mapTraceLogEvent);
     }
 
     private MapSqlParameterSource parameters(LogEvent event) {
@@ -193,6 +211,26 @@ class JdbcLogRepository implements LogRepository {
                 resultSet.getString("trace_id"),
                 resultSet.getString("user_id"),
                 resultSet.getString("transaction_id"),
+                resultSet.getString("exception_type")
+        );
+    }
+
+    private TraceLogEvent mapTraceLogEvent(ResultSet resultSet, int rowNumber) throws SQLException {
+        return new TraceLogEvent(
+                resultSet.getString("event_id"),
+                toInstant(resultSet.getTimestamp("event_timestamp")),
+                toInstant(resultSet.getTimestamp("received_at")),
+                resultSet.getString("service_name"),
+                resultSet.getString("environment"),
+                resultSet.getString("level"),
+                resultSet.getString("message"),
+                resultSet.getString("correlation_id"),
+                resultSet.getString("trace_id"),
+                resultSet.getString("span_id"),
+                resultSet.getString("parent_span_id"),
+                resultSet.getString("user_id"),
+                resultSet.getString("transaction_id"),
+                resultSet.getString("module"),
                 resultSet.getString("exception_type")
         );
     }
