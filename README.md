@@ -28,6 +28,8 @@ Checkpoint 8 adds alerting and analytics. Persisted ERROR/FATAL events are evalu
 
 Checkpoint 9 adds project observability and benchmark polish. SmartLog now exposes Prometheus metrics, includes Prometheus and Grafana Docker Compose services, ships a Grafana dashboard JSON, provides a k6 ingestion load test, includes a benchmark report template, and has a sample log generator for demo trade-finance traces.
 
+Checkpoint 10 adds the AI incident summarizer extension. Trace summaries are generated through a provider-neutral `LlmClient` interface, the local/dev implementation uses `MockLlmClient`, and generated summaries are stored in the `incident_summaries` table.
+
 Current local commands:
 
 ```bash
@@ -66,6 +68,7 @@ POST http://localhost:8080/api/v1/logs/batch
 GET  http://localhost:8080/api/v1/logs/search
 GET  http://localhost:8080/api/v1/traces/{correlationId}
 GET  http://localhost:8080/api/v1/traces/{correlationId}/root-cause
+POST http://localhost:8080/api/v1/traces/{correlationId}/incident-summary
 GET  http://localhost:8080/api/v1/alerts
 GET  http://localhost:8080/api/v1/alerts/{alertId}
 GET  http://localhost:8080/api/v1/analytics/top-errors?window=10m&limit=5
@@ -92,6 +95,8 @@ smartlog:
   alerting:
     error-threshold: 100
     window: 5m
+  ai:
+    llm-client: mock
 ```
 
 `POST /api/v1/logs` and `POST /api/v1/logs/batch` return `202 Accepted` after validation and publish to the configured ingestion pipeline, not after the row is durably written. In the default Kafka mode, search and trace APIs observe the log after the raw-topic consumer processes it and persists it. In in-memory mode, they observe the log after the local worker flushes its batch.
@@ -200,9 +205,12 @@ curl -X POST "http://localhost:8080/api/v1/logs/batch" \
 
 curl "http://localhost:8080/api/v1/traces/corr-12345"
 curl "http://localhost:8080/api/v1/traces/corr-12345/root-cause"
+curl -X POST "http://localhost:8080/api/v1/traces/corr-12345/incident-summary"
 ```
 
 The root-cause response for this trace identifies `limit-check-service` with message `Customer limit validation failed`, exception type `LimitExceededException`, and confidence `BASIC_RULE_BASED`.
+
+The incident-summary response uses the configured `LlmClient` and returns `summary`, `probableCause`, `impactedServices`, and `suggestedActions`. The default `mock` client is deterministic for local development and tests; no paid provider is hardcoded.
 
 Generate demo data:
 
@@ -250,7 +258,7 @@ Test migrations:       src/test/resources/db/migration/h2
 
 `mvn test` verifies the migration-managed schema using H2 in PostgreSQL compatibility mode. Full PostgreSQL integration testing with Testcontainers is not enabled yet because Docker is not available in this local environment; when Docker is installed, add Testcontainers PostgreSQL coverage for the same Flyway migration.
 
-The code intentionally does not implement the AI incident summarizer yet. That belongs to a later checkpoint in `GOAL.md`.
+AI incident summarizer details are documented in `docs/ai-incident-summarizer.md`.
 
 ---
 
@@ -296,7 +304,7 @@ SmartLog provides these core capabilities:
 7. Detect error spikes using sliding-window alerting.
 8. Track top-K recurring errors and exceptions.
 9. Apply rate limiting, backpressure, dead-letter handling, and idempotent writes.
-10. Later, add an AI incident agent that summarizes failures and suggests remediation steps.
+10. Generate a provider-neutral AI incident summary for failed traces with probable cause and suggested actions.
 
 ---
 
@@ -649,4 +657,4 @@ The project is considered complete when:
 7. Alert engine creates alerts for error spikes.
 8. Top-K analytics returns the most frequent errors.
 9. The project includes tests, Docker Compose, documentation, and load-test results.
-10. AI incident agent design is documented, and a basic summarizer interface is available for future extension.
+10. AI incident agent design is documented, and the provider-neutral mock summarizer can generate and persist trace summaries.

@@ -27,6 +27,7 @@ class TraceControllerTest {
 
     @BeforeEach
     void seedTrace() {
+        jdbcTemplate.update("DELETE FROM incident_summaries");
         jdbcTemplate.update("DELETE FROM logs");
 
         ingest(log("evt-workflow", "2026-06-16T10:30:06Z", "workflow-service", "WARN",
@@ -71,6 +72,37 @@ class TraceControllerTest {
         assertThat(body).containsEntry("timestamp", "2026-06-16T10:30:05Z");
     }
 
+    @Test
+    void createsIncidentSummaryUsingMockLlmClient() {
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                "/api/v1/traces/corr-12345/incident-summary",
+                null,
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = response.getBody();
+        assertThat(body).containsEntry("correlationId", "corr-12345");
+        assertThat(body.get("incidentSummaryId")).isNotNull();
+        assertThat(body.get("summary").toString())
+                .contains("Trace corr-12345 failed at limit-check-service");
+        assertThat(body.get("probableCause").toString())
+                .contains("LimitExceededException")
+                .contains("Customer limit validation failed");
+        assertThat(list(body, "impactedServices"))
+                .containsExactly("auth-service", "trade-service", "limit-check-service", "workflow-service");
+        assertThat(list(body, "suggestedActions"))
+                .contains("Inspect recent logs and deployment changes for limit-check-service.",
+                        "Replay or inspect transaction TF-9081 in a lower environment.");
+        assertThat(body).containsEntry("confidence", "MOCK_RULE_BASED");
+        assertThat(body).containsEntry("summarizerType", "MOCK_LLM");
+        awaitAsserted(() -> assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM incident_summaries WHERE correlation_id = ?",
+                Integer.class,
+                "corr-12345"
+        )).isEqualTo(1));
+    }
+
     private void ingest(Map<String, Object> request) {
         ResponseEntity<Map> response = restTemplate.postForEntity("/api/v1/logs", request, Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
@@ -111,5 +143,10 @@ class TraceControllerTest {
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> events(Map<String, Object> response) {
         return (List<Map<String, Object>>) response.get("events");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> list(Map<String, Object> response, String fieldName) {
+        return (List<String>) response.get(fieldName);
     }
 }

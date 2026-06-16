@@ -17,6 +17,7 @@ class DatabaseSchemaMigrationTest {
     void flywayCreatesRequiredTables() {
         assertTableExists("logs");
         assertTableExists("alerts");
+        assertTableExists("incident_summaries");
     }
 
     @Test
@@ -28,6 +29,12 @@ class DatabaseSchemaMigrationTest {
         assertIndexExists("idx_logs_transaction_time");
         assertIndexExists("idx_logs_service_time");
         assertIndexExists("idx_logs_level_time");
+    }
+
+    @Test
+    void flywayCreatesRequiredIncidentSummaryIndexes() {
+        assertIndexExists("idx_incident_summaries_correlation_created");
+        assertIndexExists("idx_incident_summaries_alert_created");
     }
 
     private void assertTableExists(String tableName) {

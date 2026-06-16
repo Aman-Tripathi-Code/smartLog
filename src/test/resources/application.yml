@@ -10,6 +10,8 @@ spring:
 smartlog:
   ingestion:
     mode: in-memory
+  ai:
+    llm-client: mock
 
 management:
   endpoints:

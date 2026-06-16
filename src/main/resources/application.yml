@@ -65,3 +65,5 @@ smartlog:
   alerting:
     error-threshold: 100
     window: 5m
+  ai:
+    llm-client: mock
