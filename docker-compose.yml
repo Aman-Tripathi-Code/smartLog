@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smartlog-postgres
+    environment:
+      POSTGRES_DB: smartlog
+      POSTGRES_USER: smartlog
+      POSTGRES_PASSWORD: smartlog
+    ports:
+      - "5432:5432"
+    volumes:
+      - smartlog-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartlog -d smartlog"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  smartlog-postgres-data:
+

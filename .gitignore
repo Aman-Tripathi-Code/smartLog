@@ -1,0 +1,30 @@
+# Build output
+target/
+*.class
+
+# IDE metadata
+.idea/
+*.iml
+.vscode/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Local Codex/build guidance docs
+AGENTS.md
+API_CONTRACTS.md
+ARCHITECTURE.md
+DATABASE_SCHEMA.md
+GOAL.md
+LLD.md
+TECH_STACK.md
+
+# OS files
+.DS_Store
+Thumbs.db
